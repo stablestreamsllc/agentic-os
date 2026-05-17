@@ -2,94 +2,84 @@ async function renderScheduler() {
   const content = document.getElementById('pageContent');
   content.innerHTML = `
     <div class="page-header">
-      <div>
+      <div class="page-header-left">
         <h1 class="page-title">Scheduler</h1>
-        <p class="page-subtitle">Manage scheduled workflows and cron jobs</p>
+        <p class="page-subtitle">Automated workflow scheduling</p>
       </div>
-      <button class="btn btn-primary" onclick="showNewJobForm()">+ New Job</button>
+      <button class="btn btn-primary" onclick="showAddJob()">+ Add Job</button>
     </div>
-    <div id="jobList"></div>
-    <div id="newJobForm" style="display:none"></div>
+    <div id="jobList"><div class="loading"><div class="loading-spinner"></div></div></div>
   `;
 
   try {
     const jobs = await api.getJobs();
     const container = document.getElementById('jobList');
+
     if (jobs.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="icon">⏱</div><h3>No scheduled jobs</h3></div>';
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⏱</div><div class="empty-state-title">No scheduled jobs</div><div class="empty-state-desc">Create your first scheduled job to automate workflows</div><button class="btn btn-primary mt-3" onclick="showAddJob()">+ Add Job</button></div>';
       return;
     }
 
-    const html = `
+    container.innerHTML = `
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Name</th><th>Skill</th><th>Cron</th><th>Last Run</th><th>Next Run</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Skill</th><th>Cron</th><th>Status</th><th>Last Run</th><th></th></tr></thead>
           <tbody>
             ${jobs.map(j => `
               <tr>
                 <td><strong>${j.name}</strong></td>
-                <td><span class="badge badge-info">${j.skill}</span></td>
+                <td><span class="badge badge-accent">${j.skill}</span></td>
                 <td><code>${j.cron}</code></td>
-                <td>${formatDate(j.last_run)}</td>
-                <td>${formatDate(j.next_run)}</td>
                 <td><span class="badge ${j.enabled ? 'badge-success' : 'badge-warning'}">${j.enabled ? 'Active' : 'Paused'}</span></td>
-                <td><button class="btn btn-sm btn-danger" onclick="deleteJob('${j.id}')">✕</button></td>
+                <td style="font-size:12px;color:var(--text-muted)">${j.last_run ? formatDate(j.last_run) : 'Never'}</td>
+                <td><button class="btn btn-sm btn-danger" onclick="deleteJob('${j.id}')">Delete</button></td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       </div>
+      <div style="font-size:12px;color:var(--text-muted);text-align:right;margin-top:8px">${jobs.length} job${jobs.length !== 1 ? 's' : ''}</div>
     `;
-    container.innerHTML = html;
   } catch (err) {
-    document.getElementById('jobList').innerHTML = `<div class="empty-state"><div class="icon">⚠</div><p>${escapeHtml(err.message)}</p></div>`;
+    document.getElementById('jobList').innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠</div><div class="empty-state-title">${escapeHtml(err.message)}</div></div>`;
   }
 }
 
-async function showNewJobForm() {
-  document.getElementById('newJobForm').style.display = 'block';
-  document.getElementById('newJobForm').innerHTML = `
-    <div class="card">
-      <div class="card-header"><span class="card-title">New Scheduled Job</span></div>
-      <div class="form-group">
-        <label class="form-label">Name</label>
-        <input id="jobName" placeholder="e.g., Weekly Backup">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Skill</label>
-        <select id="jobSkill"></select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Cron Expression</label>
-        <input id="jobCron" placeholder="e.g., 0 6 * * 1" value="0 6 * * *">
-        <div style="font-size:11px;color:var(--text2);margin-top:4px">
-          Common: <code>*/5 * * * *</code> (5 min), <code>0 6 * * *</code> (daily 6AM), <code>0 6 * * 1</code> (weekly Mon)
-        </div>
-      </div>
-      <button class="btn btn-primary" onclick="createJob()">Create Job</button>
-      <button class="btn" onclick="cancelNewJob()" style="margin-left:8px">Cancel</button>
-    </div>
-  `;
+async function showAddJob() {
+  let skills = [];
+  try { const s = await api.getSkills(); skills = s; } catch {}
 
-  try {
-    const skills = await api.getSkills();
-    const select = document.getElementById('jobSkill');
-    skills.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.name;
-      opt.textContent = s.name;
-      select.appendChild(opt);
-    });
-  } catch {}
+  showModal('Add Scheduled Job', `
+    <div class="form-group">
+      <label class="form-label">Job Name</label>
+      <input id="jobName" class="form-input" placeholder="e.g., Nightly Backup">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Skill</label>
+      <select id="jobSkill" class="form-select">
+        <option value="">Select a skill...</option>
+        ${skills.map(s => `<option value="${s.name}">${s.name.replace(/-/g, ' ')}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Cron Expression</label>
+      <input id="jobCron" class="form-input" placeholder="e.g., 0 2 * * *" value="0 0 * * *">
+      <div class="form-hint">Format: minute hour day month weekday</div>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="createJob()">Create Job</button>
+  `);
 }
 
 async function createJob() {
   const name = document.getElementById('jobName').value.trim();
   const skill = document.getElementById('jobSkill').value;
   const cron = document.getElementById('jobCron').value.trim();
-  if (!name || !skill || !cron) { showToast('All fields required', 'error'); return; }
+  if (!name || !skill || !cron) { showToast('All fields required', 'warning'); return; }
   try {
     await api.createJob({ name, skill, cron });
+    closeModal();
     showToast('Job created', 'success');
     renderScheduler();
   } catch (err) {
@@ -97,12 +87,8 @@ async function createJob() {
   }
 }
 
-function cancelNewJob() {
-  document.getElementById('newJobForm').style.display = 'none';
-}
-
 async function deleteJob(id) {
-  if (!confirm('Delete this job?')) return;
+  if (!confirm('Delete this scheduled job?')) return;
   try {
     await api.deleteJob(id);
     showToast('Job deleted', 'success');

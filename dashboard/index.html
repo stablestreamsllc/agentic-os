@@ -4,74 +4,70 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agentic OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
-<nav id="sidebar" class="sidebar">
-  <div class="sidebar-header">
-    <div class="logo">
-      <span class="logo-icon">⬡</span>
-      <span class="logo-text">Agentic OS</span>
+  <nav id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">⬡</div>
+        <span class="logo-text">Agentic OS</span>
+      </div>
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
     </div>
-    <button class="sidebar-toggle" onclick="toggleSidebar()">≡</button>
-  </div>
-  <div class="sidebar-nav" id="sidebarNav">
-    <a href="#dashboard" class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
-      <span class="nav-icon">◉</span> Dashboard
-    </a>
-    <a href="#skills" class="nav-item" data-page="skills" onclick="navigate('skills')">
-      <span class="nav-icon">⚡</span> Skills
-    </a>
-    <a href="#memory" class="nav-item" data-page="memory" onclick="navigate('memory')">
-      <span class="nav-icon">🧠</span> Memory
-    </a>
-    <a href="#scheduler" class="nav-item" data-page="scheduler" onclick="navigate('scheduler')">
-      <span class="nav-icon">⏱</span> Scheduler
-    </a>
-    <a href="#audit" class="nav-item" data-page="audit" onclick="navigate('audit')">
-      <span class="nav-icon">📋</span> Audit
-    </a>
-    <a href="#cost" class="nav-item" data-page="cost" onclick="navigate('cost')">
-      <span class="nav-icon">💰</span> Cost Analytics
-    </a>
-    <a href="#plugins" class="nav-item" data-page="plugins" onclick="navigate('plugins')">
-      <span class="nav-icon">🔌</span> Plugins
-    </a>
-    <a href="#backups" class="nav-item" data-page="backups" onclick="navigate('backups')">
-      <span class="nav-icon">💾</span> Backups
-    </a>
-    <a href="#prompts" class="nav-item" data-page="prompts" onclick="navigate('prompts')">
-      <span class="nav-icon">📝</span> Prompts
-    </a>
-    <a href="#standards" class="nav-item" data-page="standards" onclick="navigate('standards')">
-      <span class="nav-icon">📐</span> Standards
-    </a>
-    <a href="#settings" class="nav-item" data-page="settings" onclick="navigate('settings')">
-      <span class="nav-icon">⚙</span> Settings
-    </a>
-  </div>
-  <div class="sidebar-footer">
-    <div class="agent-status" id="agentStatus">
-      <div class="status-dot offline"></div>
-      <span>Loading...</span>
+    <div class="sidebar-nav">
+      <div class="sidebar-section"><div class="sidebar-section-label">Core</div></div>
+      <a href="#dashboard" class="nav-item active" data-page="dashboard"><span class="nav-icon">◉</span><span class="nav-label">Dashboard</span></a>
+      <a href="#skills" class="nav-item" data-page="skills"><span class="nav-icon">⚡</span><span class="nav-label">Skills</span><span class="nav-badge" id="skillCount">0</span></a>
+      <a href="#memory" class="nav-item" data-page="memory"><span class="nav-icon">🧠</span><span class="nav-label">Memory</span></a>
+      <a href="#scheduler" class="nav-item" data-page="scheduler"><span class="nav-icon">⏱</span><span class="nav-label">Scheduler</span></a>
+      <a href="#audit" class="nav-item" data-page="audit"><span class="nav-icon">📋</span><span class="nav-label">Audit</span></a>
+      <div class="sidebar-section"><div class="sidebar-section-label">Management</div></div>
+      <a href="#cost" class="nav-item" data-page="cost"><span class="nav-icon">💰</span><span class="nav-label">Cost Analytics</span></a>
+      <a href="#plugins" class="nav-item" data-page="plugins"><span class="nav-icon">🔌</span><span class="nav-label">Plugins</span></a>
+      <a href="#backups" class="nav-item" data-page="backups"><span class="nav-icon">💾</span><span class="nav-label">Backups</span></a>
+      <div class="sidebar-section"><div class="sidebar-section-label">Resources</div></div>
+      <a href="#prompts" class="nav-item" data-page="prompts"><span class="nav-icon">📝</span><span class="nav-label">Prompts</span></a>
+      <a href="#standards" class="nav-item" data-page="standards"><span class="nav-icon">📐</span><span class="nav-label">Standards</span></a>
+      <a href="#settings" class="nav-item" data-page="settings"><span class="nav-icon">⚙</span><span class="nav-label">Settings</span></a>
+      <div class="sidebar-section"><div class="sidebar-section-label">Setup</div></div>
+      <a href="#setup-wizard" class="nav-item" data-page="setup-wizard"><span class="nav-icon">🚀</span><span class="nav-label">Setup Wizard</span></a>
     </div>
-    <div class="theme-toggle">
-      <button onclick="toggleTheme()" title="Toggle theme">🌓</button>
+    <div class="sidebar-footer">
+      <div class="agent-status-bar" id="agentStatusBar">
+        <div class="agent-dot offline"></div>
+        <span class="agent-status-text">Connecting...</span>
+      </div>
+      <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme"><span class="theme-label">🌓</span></button>
     </div>
-  </div>
-</nav>
+  </nav>
 
-<main id="mainContent" class="main-content">
-  <div id="pageContent" class="page-content">
-    <div class="loading">Loading Agentic OS...</div>
-  </div>
-</main>
+  <main class="main-content">
+    <div class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-title" id="pageTitle">Dashboard</span>
+        <span class="topbar-breadcrumb" id="pageBreadcrumb">Overview</span>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-search">
+          <span>🔍</span>
+          <input type="text" placeholder="Search skills..." id="globalSearch" oninput="handleGlobalSearch(this.value)">
+        </div>
+      </div>
+    </div>
+    <div id="pageContent" class="page-content">
+      <div class="loading"><div class="loading-spinner"></div><span>Loading Agentic OS...</span></div>
+    </div>
+  </main>
 
-<div id="toastContainer" class="toast-container"></div>
+  <div id="toastContainer" class="toast-container"></div>
+  <div id="modalContainer"></div>
 
-<script src="utils.js"></script>
-<script src="api.js"></script>
-<script src="app.js"></script>
+  <script src="utils.js"></script>
+  <script src="api.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

@@ -2,13 +2,13 @@ async function renderStandards() {
   const content = document.getElementById('pageContent');
   content.innerHTML = `
     <div class="page-header">
-      <div>
+      <div class="page-header-left">
         <h1 class="page-title">Standards</h1>
-        <p class="page-subtitle">Project standards and conventions</p>
+        <p class="page-subtitle">Project conventions and coding standards</p>
       </div>
-      <button class="btn btn-primary" onclick="runStandardsDiscovery()">🔍 Discover</button>
+      <button class="btn btn-primary" onclick="runDiscovery()">🔍 Discover Patterns</button>
     </div>
-    <div id="standardsContent"><div class="loading">Loading...</div></div>
+    <div id="standardsContent"><div class="loading"><div class="loading-spinner"></div></div></div>
   `;
 
   try {
@@ -20,37 +20,45 @@ async function renderStandards() {
     let html = '';
 
     if (index) {
-      html += `
-        <div class="card">
-          <div class="card-header"><span class="card-title">Standards Index</span></div>
-          <pre style="font-size:12px">${escapeHtml(index)}</pre>
-        </div>
-      `;
+      html += `<div class="card"><div class="card-header"><span class="card-title">📐 Standards Index</span></div><pre style="font-size:12px">${escapeHtml(index)}</pre></div>`;
     }
 
     if (standards.length === 0) {
-      html += '<div class="empty-state"><div class="icon">📐</div><h3>No standards defined</h3><p>Run "Discover" to extract patterns from your codebase</p></div>';
+      html += '<div class="empty-state"><div class="empty-state-icon">📐</div><div class="empty-state-title">No standards defined</div><div class="empty-state-desc">Run "Discover Patterns" to extract conventions from your codebase</div></div>';
     } else {
-      standards.forEach(s => {
-        html += `
-          <div class="card">
-            <div class="card-header"><span class="card-title">${s.name}</span></div>
-            <pre style="font-size:12px;max-height:300px;overflow:auto">${escapeHtml(s.content)}</pre>
-          </div>
-        `;
-      });
+      html += `<div class="grid grid-2">${standards.map(s => `
+        <div class="card" style="cursor:pointer" onclick="viewStandard('${s.name}')">
+          <div class="card-header"><span class="card-title">${s.name.replace(/-/g, ' ')}</span></div>
+          <pre style="max-height:200px;overflow:hidden;font-size:12px">${escapeHtml(s.content.slice(0, 300))}${s.content.length > 300 ? '...' : ''}</pre>
+        </div>
+      `).join('')}</div>`;
     }
 
     container.innerHTML = html;
   } catch (err) {
-    document.getElementById('standardsContent').innerHTML = `<div class="empty-state"><div class="icon">⚠</div><p>${escapeHtml(err.message)}</p></div>`;
+    document.getElementById('standardsContent').innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠</div><div class="empty-state-title">${escapeHtml(err.message)}</div></div>`;
   }
 }
 
-async function runStandardsDiscovery() {
+async function viewStandard(name) {
+  let content = '';
+  try {
+    const data = await api.getStandards();
+    const std = (data.standards || []).find(s => s.name === name);
+    if (std) content = std.content;
+  } catch {}
+
+  showModal(`Standard: ${name.replace(/-/g, ' ')}`, `
+    <pre style="white-space:pre-wrap;font-size:12px;max-height:60vh;overflow:auto">${escapeHtml(content)}</pre>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+  `);
+}
+
+async function runDiscovery() {
   try {
     const r = await api.discoverStandards();
-    showToast(r.message, 'success');
+    showToast(r.message || 'Discovery started', 'success');
   } catch (err) {
     showToast(`Error: ${err.message}`, 'error');
   }

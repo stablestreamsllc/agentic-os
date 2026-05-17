@@ -2,9 +2,9 @@ async function renderPrompts() {
   const content = document.getElementById('pageContent');
   content.innerHTML = `
     <div class="page-header">
-      <div>
+      <div class="page-header-left">
         <h1 class="page-title">Prompt Library</h1>
-        <p class="page-subtitle">Reusable prompt templates for common tasks</p>
+        <p class="page-subtitle">Reusable templates for common agent tasks</p>
       </div>
     </div>
     <div id="promptGrid" class="grid grid-3"></div>
@@ -12,62 +12,52 @@ async function renderPrompts() {
 
   try {
     const prompts = await api.getPrompts();
+    const entries = Object.entries(prompts);
     const grid = document.getElementById('promptGrid');
 
-    const entries = Object.entries(prompts);
     if (entries.length === 0) {
-      grid.innerHTML = '<div class="empty-state"><div class="icon">📝</div><h3>No prompts in library</h3></div>';
+      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon">📝</div><div class="empty-state-title">No prompt templates</div></div>';
       return;
     }
 
-    entries.forEach(([name, content]) => {
+    grid.innerHTML = entries.map(([name, content]) => {
       const displayName = name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      const preview = content.slice(0, 150);
-      grid.innerHTML += `
-        <div class="card" style="cursor:pointer" onclick="showPromptDetail('${name}')">
-          <div style="font-size:14px;font-weight:600;margin-bottom:8px">${displayName}</div>
-          <pre style="font-size:11px;max-height:120px;overflow:hidden">${escapeHtml(preview)}...</pre>
-          <div style="margin-top:8px;display:flex;gap:4px">
-            <span class="badge badge-info">${content.split('\n').length} lines</span>
-          </div>
+      const preview = content.slice(0, 180);
+      const lines = content.split('\n').length;
+      return `<div class="skill-card" onclick="viewPrompt('${name}')">
+        <div class="skill-card-header">
+          <div class="skill-card-icon">📝</div>
+          <div class="skill-card-name">${displayName}</div>
         </div>
-      `;
-    });
+        <div class="skill-card-desc"><pre style="background:none;border:none;padding:0;max-height:100px;overflow:hidden;font-size:11px;color:var(--text-muted)">${escapeHtml(preview)}${preview.length >= 180 ? '...' : ''}</pre></div>
+        <div class="skill-card-footer"><span class="badge badge-info">${lines} lines</span></div>
+      </div>`;
+    }).join('');
   } catch (err) {
-    document.getElementById('promptGrid').innerHTML = `<div class="empty-state"><div class="icon">⚠</div><p>${escapeHtml(err.message)}</p></div>`;
+    document.getElementById('promptGrid').innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon">⚠</div><div class="empty-state-title">${escapeHtml(err.message)}</div></div>`;
   }
 }
 
-async function showPromptDetail(name) {
-  const content = document.getElementById('pageContent');
-  let fullContent = '';
+async function viewPrompt(name) {
+  let content = '';
   try {
     const prompts = await api.getPrompts();
-    fullContent = prompts[name] || '';
+    content = prompts[name] || '';
   } catch {}
 
   const displayName = name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  content.innerHTML = `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">${displayName}</h1>
-        <p class="page-subtitle">Prompt template</p>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="copyPrompt()" id="copyPromptBtn">📋 Copy</button>
-        <button class="btn" onclick="renderPrompts()">← Back</button>
-      </div>
-    </div>
-    <div class="card">
-      <pre id="promptContent" style="white-space:pre-wrap">${escapeHtml(fullContent)}</pre>
-    </div>
-  `;
+
+  showModal(`Prompt: ${displayName}`, `
+    <pre style="white-space:pre-wrap;font-size:12px;max-height:60vh;overflow:auto">${escapeHtml(content)}</pre>
+  `, `
+    <button class="btn btn-primary" onclick="copyPromptContent('${escapeHtml(content).replace(/'/g, "\\'")}')">📋 Copy</button>
+    <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+  `);
 }
 
-function copyPrompt() {
-  const pre = document.getElementById('promptContent');
-  if (!pre) return;
-  navigator.clipboard.writeText(pre.textContent).then(() => {
+function copyPromptContent(text) {
+  const decoded = text.replace(/\\'/g, "'");
+  navigator.clipboard.writeText(decoded).then(() => {
     showToast('Copied to clipboard', 'success');
   }).catch(() => {
     showToast('Failed to copy', 'error');

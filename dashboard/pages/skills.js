@@ -2,122 +2,172 @@ async function renderSkills() {
   const content = document.getElementById('pageContent');
   content.innerHTML = `
     <div class="page-header">
-      <div>
-        <h1 class="page-title">Skills</h1>
+      <div class="page-header-left">
+        <h1 class="page-title">Skills Hub</h1>
         <p class="page-subtitle">Browse, run, and monitor skill performance</p>
       </div>
+      <div class="btn-group">
+        <input id="skillFilter" class="form-input" style="width:200px" placeholder="Filter skills..." oninput="filterSkills()">
+      </div>
     </div>
-    <div id="skillsGrid" class="grid grid-3"></div>
+    <div class="tabs" id="skillTabs">
+      <button class="tab active" data-view="grid" onclick="switchSkillView('grid')">📊 Grid</button>
+      <button class="tab" data-view="list" onclick="switchSkillView('list')">📋 List</button>
+    </div>
+    <div id="skillsContainer"><div class="loading"><div class="loading-spinner"></div></div></div>
     <div id="skillDetail" style="display:none"></div>
   `;
 
   try {
     const skills = await api.getSkills();
-    const grid = document.getElementById('skillsGrid');
-    if (skills.length === 0) {
-      grid.innerHTML = '<div class="empty-state"><div class="icon">⚡</div><h3>No skills installed</h3></div>';
-      return;
-    }
-    skills.forEach(s => {
-      const lastScore = s.scores && s.scores.length > 0 ? s.scores[s.scores.length - 1] : null;
-      const avgScore = lastScore ? (lastScore.criteria_scores || []).reduce((a, b) => a + b, 0) / (lastScore.criteria_scores || [1]).length : null;
-      grid.innerHTML += `
-        <div class="skill-card" onclick="showSkillDetail('${s.name}')">
-          <div class="skill-name">${s.name.replace(/-/g, ' ')}</div>
-          <div class="skill-desc">${s.description ? s.description.slice(0, 120) + '...' : 'No description'}</div>
-          <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-            ${avgScore !== null ? `<span class="badge badge-success">Score: ${(avgScore * 100).toFixed(0)}%</span>` : ''}
-            ${s.has_learnings ? '<span class="badge badge-info">Learning</span>' : ''}
-            <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();quickRun('${s.name}')">▶ Run</button>
-          </div>
-        </div>
-      `;
-    });
+    window._allSkills = skills;
+    renderSkillGrid(skills);
   } catch (err) {
-    content.innerHTML = `<div class="empty-state"><div class="icon">⚠</div><h3>Error loading skills</h3><p>${escapeHtml(err.message)}</p></div>`;
+    document.getElementById('skillsContainer').innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠</div><div class="empty-state-title">${escapeHtml(err.message)}</div></div>`;
   }
 }
 
-async function showSkillDetail(name) {
-  const detail = document.getElementById('skillDetail');
-  const grid = document.getElementById('skillsGrid');
-  grid.style.display = 'none';
-  detail.style.display = 'block';
-
-  detail.innerHTML = `
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">${name.replace(/-/g, ' ')}</span>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-primary btn-sm" onclick="quickRun('${name}')">▶ Run</button>
-          <button class="btn btn-sm" onclick="backToSkills()">← Back</button>
-        </div>
+function renderSkillGrid(skills) {
+  const container = document.getElementById('skillsContainer');
+  if (!skills || skills.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚡</div><div class="empty-state-title">No skills installed</div></div>';
+    return;
+  }
+  container.innerHTML = `<div class="grid grid-3" id="skillGrid">${skills.map(s => {
+    const lastScore = s.scores && s.scores.length > 0 ? s.scores[s.scores.length - 1] : null;
+    const avg = lastScore && lastScore.criteria_scores ? (lastScore.criteria_scores.reduce((a, b) => a + b, 0) / lastScore.criteria_scores.length) : null;
+    const icons = ['⚡', '🔧', '📝', '🔍', '🔄', '🎯', '📊', '🛠', '💡', '🧪', '📋', '💾', '💰', '🔄', '🎨'];
+    const icon = icons[Math.floor(Math.random() * icons.length)];
+    return `<div class="skill-card" onclick="showSkillDetail('${s.name}')">
+      <div class="skill-card-header">
+        <div class="skill-card-icon">${icon}</div>
+        <div class="skill-card-name">${s.name.replace(/-/g, ' ')}</div>
       </div>
-      <div id="skillDetailContent" class="loading">Loading...</div>
-    </div>
-  `;
+      <div class="skill-card-desc">${s.description ? s.description.slice(0, 120) + (s.description.length > 120 ? '...' : '') : 'No description'}</div>
+      <div class="skill-card-footer">
+        ${avg !== null ? `<span class="badge badge-success">${(avg * 100).toFixed(0)}%</span>` : '<span class="badge badge-info">New</span>'}
+        ${s.has_learnings ? '<span class="badge badge-accent">📖</span>' : ''}
+        <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="event.stopPropagation();quickRunSkill('${s.name}')">▶ Run</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function switchSkillView(view) {
+  document.querySelectorAll('#skillTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  if (view === 'list') {
+    const skills = window._allSkills || [];
+    document.getElementById('skillsContainer').innerHTML = `<div class="table-wrapper"><table><thead><tr><th>Skill</th><th>Score</th><th>Learnings</th><th></th></tr></thead><tbody>${skills.map(s => {
+      const lastScore = s.scores && s.scores.length > 0 ? s.scores[s.scores.length - 1] : null;
+      const avg = lastScore && lastScore.criteria_scores ? (lastScore.criteria_scores.reduce((a, b) => a + b, 0) / lastScore.criteria_scores.length) : null;
+      return `<tr onclick="showSkillDetail('${s.name}')" style="cursor:pointer">
+        <td><strong>${s.name.replace(/-/g, ' ')}</strong></td>
+        <td>${avg !== null ? `<span class="badge badge-success">${(avg * 100).toFixed(0)}%</span>` : '<span class="badge badge-info">—</span>'}</td>
+        <td>${s.has_learnings ? '<span class="badge badge-accent">✓</span>' : '<span class="badge">—</span>'}</td>
+        <td><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();quickRunSkill('${s.name}')">▶</button></td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+  } else {
+    renderSkillGrid(window._allSkills || []);
+  }
+}
+
+function filterSkills() {
+  const q = document.getElementById('skillFilter').value.toLowerCase();
+  const skills = (window._allSkills || []).filter(s => s.name.toLowerCase().includes(q));
+  renderSkillGrid(skills);
+}
+
+async function showSkillDetail(name) {
+  document.getElementById('skillsContainer').style.display = 'none';
+  document.getElementById('skillTabs').style.display = 'none';
+  document.getElementById('skillFilter').style.display = 'none';
+  const detail = document.getElementById('skillDetail');
+  detail.style.display = 'block';
+  detail.innerHTML = `<div class="loading"><div class="loading-spinner"></div></div>`;
 
   try {
     const skill = await api.getSkill(name);
-    const evalHistory = await api.getSkillEval(name);
-    const scores = evalHistory.scores || [];
-
-    let scoreHtml = '';
-    if (scores.length > 0) {
-      const recent = scores[scores.length - 1];
-      const avg = recent.total_score || 0;
-      scoreHtml = `
-        <div style="margin:12px 0">
-          <strong>Eval Score History:</strong>
-          <div style="display:flex;gap:4px;margin-top:4px">
-            ${scores.slice(-10).map(s => `<span class="badge ${s.total_score > 0.7 ? 'badge-success' : 'badge-warning'}">${(s.total_score * 100).toFixed(0)}%</span>`).join('')}
-          </div>
-        </div>
-      `;
-    }
+    const scores = skill.score_history || [];
+    const lastScore = scores.length > 0 ? scores[scores.length - 1] : null;
+    const avg = lastScore && lastScore.criteria_scores ? (lastScore.criteria_scores.reduce((a, b) => a + b, 0) / lastScore.criteria_scores.length) : null;
 
     detail.innerHTML = `
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">${name.replace(/-/g, ' ')}</span>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-primary btn-sm" onclick="quickRun('${name}')">▶ Run</button>
-            <button class="btn btn-sm" onclick="backToSkills()">← Back</button>
-          </div>
+      <div style="margin-bottom:16px">
+        <button class="btn btn-ghost" onclick="backToSkills()">← Back to Skills</button>
+        <button class="btn btn-primary" style="margin-left:8px" onclick="quickRunSkill('${name}')">▶ Run ${name.replace(/-/g, ' ')}</button>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">📄 SKILL.md</span></div>
+          <pre style="max-height:400px;overflow:auto;font-size:12px">${escapeHtml(skill.skill || 'No SKILL.md')}</pre>
         </div>
-        <div id="skillDetailContent">
-          <div class="grid grid-2">
-            <div>
-              <h3 style="margin-bottom:8px">SKILL.md</h3>
-              <pre style="max-height:400px;overflow:auto">${escapeHtml(skill.skill || 'No SKILL.md')}</pre>
+        <div class="card">
+          <div class="card-header"><span class="card-title">📖 Learnings</span></div>
+          <pre style="max-height:400px;overflow:auto;font-size:12px">${escapeHtml(skill.learnings || 'No learnings yet')}</pre>
+        </div>
+      </div>
+      <div class="grid grid-2 mt-3">
+        <div class="card">
+          <div class="card-header"><span class="card-title">📊 Performance</span></div>
+          ${scores.length > 0 ? `
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+              ${scores.slice(-10).map(s => `<span class="badge ${(s.total_score || 0) > 0.7 ? 'badge-success' : 'badge-warning'}">${((s.total_score || 0) * 100).toFixed(0)}%</span>`).join('')}
             </div>
-            <div>
-              <h3 style="margin-bottom:8px">Learnings</h3>
-              <pre style="max-height:400px;overflow:auto">${escapeHtml(skill.learnings || 'No learnings yet')}</pre>
-            </div>
-          </div>
-          ${scoreHtml}
-          <div style="margin-top:12px">
-            <strong>Context files:</strong> ${(skill.context || []).join(', ') || 'None'}
-          </div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${(avg || 0) * 100}%"></div></div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:6px">Average: ${avg !== null ? (avg * 100).toFixed(0) : 'N/A'}% (${scores.length} runs)</div>
+          ` : '<div style="color:var(--text-muted);font-size:13px">No evaluation scores yet</div>'}
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">📁 Context Files</span></div>
+          ${skill.context && skill.context.length > 0
+            ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${skill.context.map(f => `<span class="badge badge-info">${f}</span>`).join('')}</div>`
+            : '<div style="color:var(--text-muted);font-size:13px">No context files</div>'}
+          ${skill.eval && skill.eval.criteria ? `<div style="margin-top:12px"><strong style="font-size:12px">Eval Criteria:</strong><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${skill.eval.criteria.map(c => `<span class="badge badge-accent">${c}</span>`).join('')}</div></div>` : ''}
         </div>
       </div>
     `;
   } catch (err) {
-    document.getElementById('skillDetailContent').innerHTML = `<span style="color:var(--red)">Error: ${escapeHtml(err.message)}</span>`;
+    detail.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠</div><div class="empty-state-title">Error</div><div class="empty-state-desc">${escapeHtml(err.message)}</div><button class="btn btn-primary mt-3" onclick="backToSkills()">Back</button></div>`;
   }
 }
 
 function backToSkills() {
-  document.getElementById('skillsGrid').style.display = 'grid';
+  document.getElementById('skillsContainer').style.display = '';
+  document.getElementById('skillTabs').style.display = '';
+  document.getElementById('skillFilter').style.display = '';
   document.getElementById('skillDetail').style.display = 'none';
-  renderSkills();
 }
 
-async function quickRun(name) {
+async function quickRunSkill(name) {
+  const displayName = name.replace(/-/g, ' ');
+  showModal(`Run: ${displayName}`, `
+    <div class="form-group">
+      <label class="form-label">Input (optional)</label>
+      <textarea id="qrsInput" class="form-textarea" rows="3" placeholder="Enter input for ${displayName}..."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Agent</label>
+      <select id="qrsAgent" class="form-select">
+        <option value="auto">Auto-detect</option>
+        <option value="opencode">opencode</option>
+        <option value="hermes">Hermes</option>
+        <option value="gemini">Gemini CLI</option>
+      </select>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="executeSkillRun('${name}')">▶ Run</button>
+  `);
+}
+
+async function executeSkillRun(name) {
+  const input = document.getElementById('qrsInput').value;
+  const agent = document.getElementById('qrsAgent').value;
   try {
-    const r = await api.runSkill(name);
-    showToast(`'${name}' dispatched to ${r.agent}`, 'success');
+    const r = await api.runSkill(name, input, agent);
+    closeModal();
+    showToast(`"${name}" dispatched to ${r.agent} #${r.run_id}`, 'success');
   } catch (err) {
     showToast(`Error: ${err.message}`, 'error');
   }

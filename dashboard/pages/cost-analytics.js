@@ -1,126 +1,158 @@
-let costChart = null;
-
-async function renderCostAnalytics() {
+async function renderCost() {
   const content = document.getElementById('pageContent');
   content.innerHTML = `
     <div class="page-header">
-      <div>
+      <div class="page-header-left">
         <h1 class="page-title">Cost Analytics</h1>
-        <p class="page-subtitle">Token usage and spending across all agents</p>
+        <p class="page-subtitle">Track API usage and spending across agents</p>
       </div>
+      <button class="btn btn-primary" onclick="recordTestCost()">+ Record Test</button>
     </div>
-
-    <div class="grid grid-4" id="costCards">
-      <div class="card"><div class="card-value" id="totalTokens">0</div><div class="card-label">Total Tokens</div></div>
-      <div class="card"><div class="card-value" id="todayTokens">0</div><div class="card-label">Today's Tokens</div></div>
-      <div class="card"><div class="card-value" id="estimatedMonthly">$0</div><div class="card-label">Est. Monthly</div></div>
-      <div class="card"><div class="card-value" id="freeTierStatus" style="font-size:24px">Free</div><div class="card-label">Free Tier Status</div></div>
-    </div>
-
+    <div class="grid grid-3 mb-4" id="costStats"></div>
     <div class="grid grid-2">
       <div class="card">
         <div class="card-header"><span class="card-title">Usage by Agent</span></div>
-        <div id="costAgentBreakdown"></div>
+        <div class="chart-container"><canvas id="agentChart"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-header"><span class="card-title">Usage Trend</span></div>
-        <div class="chart-container"><canvas id="costChart"></canvas></div>
+        <div class="card-header"><span class="card-title">Usage Over Time</span></div>
+        <div class="chart-container"><canvas id="timeChart"></canvas></div>
       </div>
     </div>
-
-    <div class="card">
-      <div class="card-header"><span class="card-title">Free Tier Alerts</span></div>
-      <div id="freeTierAlerts"></div>
+    <div class="card mt-3">
+      <div class="card-header"><span class="card-title">Recent Cost Entries</span></div>
+      <div id="costEntries"><div class="loading"><div class="loading-spinner"></div></div></div>
     </div>
   `;
 
   try {
-    const cost = await api.getCost();
-    const entries = cost.entries || [];
+    const data = await api.getCost();
+    const entries = data.entries || [];
+    const totals = data.daily_totals || {};
+    const alerts = data.free_tier_alerts || [];
 
-    // Aggregate
-    const totalTokens = entries.reduce((sum, e) => sum + (e.tokens || 0), 0);
-    const today = new Date().toISOString().slice(0, 10);
-    const todayTokens = entries.filter(e => e.timestamp && e.timestamp.startsWith(today)).reduce((sum, e) => sum + (e.tokens || 0), 0);
+    const totalCost = entries.reduce((s, e) => s + (e.cost || 0), 0);
+    const totalTokens = entries.reduce((s, e) => s + (e.tokens || 0), 0);
+    const days = Object.keys(totals).length;
 
-    document.getElementById('totalTokens').textContent = totalTokens.toLocaleString();
-    document.getElementById('todayTokens').textContent = todayTokens.toLocaleString();
-    document.getElementById('estimatedMonthly').textContent = `$${(totalTokens * 0.000002).toFixed(2)}`;
+    document.getElementById('costStats').innerHTML = `
+      <div class="card stat-card"><div class="stat-icon purple">💰</div><div class="stat-value">$${totalCost.toFixed(4)}</div><div class="stat-label">Total Cost</div></div>
+      <div class="card stat-card"><div class="stat-icon blue">🔤</div><div class="stat-value">${totalTokens.toLocaleString()}</div><div class="stat-label">Total Tokens</div></div>
+      <div class="card stat-card"><div class="stat-icon ${alerts.length > 0 ? 'red' : 'green'}">${alerts.length > 0 ? '⚠' : '✓'}</div><div class="stat-value">${alerts.length}</div><div class="stat-label">Free Tier Alerts</div></div>
+    `;
 
-    // Agent breakdown
-    const byAgent = {};
-    entries.forEach(e => {
-      const agent = e.agent || 'unknown';
-      byAgent[agent] = (byAgent[agent] || 0) + (e.tokens || 0);
-    });
-    const breakdown = document.getElementById('costAgentBreakdown');
-    Object.entries(byAgent).forEach(([agent, tokens]) => {
-      const pct = totalTokens > 0 ? (tokens / totalTokens * 100).toFixed(1) : 0;
-      breakdown.innerHTML += `
-        <div style="margin-bottom:12px">
-          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
-            <strong>${agent}</strong>
-            <span>${tokens.toLocaleString()} (${pct}%)</span>
-          </div>
-          <div style="height:8px;background:var(--bg3);border-radius:4px;overflow:hidden">
-            <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:4px;transition:width 0.5s"></div>
-          </div>
+    const entriesContainer = document.getElementById('costEntries');
+    if (entries.length === 0) {
+      entriesContainer.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-state-icon">📊</div><div class="empty-state-title">No cost data yet</div></div>';
+    } else {
+      entriesContainer.innerHTML = `
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Time</th><th>Agent</th><th>Model</th><th>Tokens</th><th>Cost</th></tr></thead>
+            <tbody>
+              ${entries.slice(-20).reverse().map(e => `
+                <tr>
+                  <td style="font-size:12px">${formatDate(e.timestamp)}</td>
+                  <td><span class="badge badge-accent">${e.agent}</span></td>
+                  <td style="font-size:12px">${e.model}</td>
+                  <td>${(e.tokens || 0).toLocaleString()}</td>
+                  <td><span class="badge ${(e.cost || 0) > 0 ? 'badge-warning' : 'badge-success'}">$${(e.cost || 0).toFixed(6)}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
         </div>
       `;
-    });
-
-    // Free tier alerts
-    const alerts = cost.free_tier_alerts || [];
-    const alertsContainer = document.getElementById('freeTierAlerts');
-    if (alerts.length === 0) {
-      alertsContainer.innerHTML = '<div class="empty-state" style="padding:16px"><span>No active alerts. All within free tier limits.</span></div>';
-    } else {
-      alertsContainer.innerHTML = alerts.map(a => `
-        <div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border);font-size:13px">
-          <span class="badge badge-warning">ALERT</span>
-          <span>${a}</span>
-        </div>
-      `).join('');
     }
 
-    // Chart
-    const ctx = document.getElementById('costChart');
-    if (ctx && Chart) {
-      if (costChart) costChart.destroy();
-      const dailyTotals = {};
-      entries.forEach(e => {
-        if (e.timestamp) {
-          const day = e.timestamp.slice(0, 10);
-          dailyTotals[day] = (dailyTotals[day] || 0) + (e.tokens || 0);
-        }
+    if (alerts.length > 0) {
+      const header = document.querySelector('.page-header');
+      header.insertAdjacentHTML('afterend', `
+        <div class="card mb-3" style="border-color:var(--yellow)">
+          <div class="flex items-center gap-2">
+            <span style="font-size:18px">⚠</span>
+            <div>
+              <strong style="font-size:13px">Free Tier Alerts</strong>
+              ${alerts.map(a => `<div style="font-size:12px;color:var(--text-muted)">${escapeHtml(a)}</div>`).join('')}
+            </div>
+          </div>
+        </div>
+      `);
+    }
+
+    // Build agent chart
+    const agentTotals = {};
+    entries.forEach(e => {
+      const a = e.agent || 'unknown';
+      agentTotals[a] = (agentTotals[a] || 0) + (e.tokens || 0);
+    });
+    const agentLabels = Object.keys(agentTotals);
+    const agentData = Object.values(agentTotals);
+
+    if (entries.length > 0) {
+      new Chart(document.getElementById('agentChart'), {
+        type: 'doughnut',
+        data: { labels: agentLabels, datasets: [{ data: agentData, backgroundColor: ['rgba(108,92,231,0.8)', 'rgba(0,212,170,0.8)', 'rgba(69,170,242,0.8)', 'rgba(255,165,2,0.8)'] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim(), font: { size: 11 } } } } }
       });
-      const days = Object.keys(dailyTotals).slice(-14);
-      const values = days.map(d => dailyTotals[d]);
-      costChart = new Chart(ctx, {
+
+      const timeTotals = {};
+      entries.forEach(e => {
+        const day = e.timestamp ? e.timestamp.slice(0, 10) : 'unknown';
+        timeTotals[day] = (timeTotals[day] || 0) + (e.tokens || 0);
+      });
+      const timeLabels = Object.keys(timeTotals).sort();
+      const timeData = timeLabels.map(d => timeTotals[d]);
+
+      new Chart(document.getElementById('timeChart'), {
         type: 'line',
-        data: {
-          labels: days,
-          datasets: [{
-            label: 'Daily Tokens',
-            data: values,
-            borderColor: '#6c5ce7',
-            backgroundColor: 'rgba(108,92,231,0.1)',
-            fill: true,
-            tension: 0.4,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { color: '#8b8fa3', maxTicksLimit: 7 } },
-            y: { ticks: { color: '#8b8fa3' } }
-          }
-        }
+        data: { labels: timeLabels, datasets: [{ label: 'Tokens', data: timeData, borderColor: 'rgba(108,92,231,0.8)', backgroundColor: 'rgba(108,92,231,0.1)', fill: true, tension: 0.4, pointRadius: 3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim(), font: { size: 10 } } }, y: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim(), font: { size: 10 } } } } }
       });
     }
   } catch (err) {
-    document.getElementById('costCards').innerHTML = `<div class="card"><p style="color:var(--red)">Error: ${escapeHtml(err.message)}</p></div>`;
+    document.getElementById('costStats').innerHTML = `<div class="card" style="grid-column:1/-1"><div class="empty-state"><div class="empty-state-icon">⚠</div><div class="empty-state-title">${escapeHtml(err.message)}</div></div></div>`;
+  }
+}
+
+async function recordTestCost() {
+  showModal('Record Cost Entry', `
+    <div class="form-group">
+      <label class="form-label">Agent</label>
+      <select id="rcAgent" class="form-select"><option>opencode</option><option>hermes</option><option>gemini</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Model</label>
+      <input id="rcModel" class="form-input" value="deepseek-v4-flash-free">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Tokens</label>
+        <input id="rcTokens" class="form-input" type="number" value="1000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cost ($)</label>
+        <input id="rcCost" class="form-input" type="number" step="0.000001" value="0.0001">
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="submitCostRecord()">Record</button>
+  `);
+}
+
+async function submitCostRecord() {
+  try {
+    await api.recordCost({
+      agent: document.getElementById('rcAgent').value,
+      model: document.getElementById('rcModel').value,
+      tokens: parseInt(document.getElementById('rcTokens').value) || 0,
+      cost: parseFloat(document.getElementById('rcCost').value) || 0,
+    });
+    closeModal();
+    showToast('Cost recorded', 'success');
+    renderCost();
+  } catch (err) {
+    showToast(`Error: ${err.message}`, 'error');
   }
 }

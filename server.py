@@ -415,11 +415,21 @@ def discover_standards():
 
 # ─── Routes: Dashboard Static Files ──────────────────────────────
 
+dashboard_dir = BASE_DIR / "dashboard"
+if dashboard_dir.exists():
+    app.mount("/dashboard", StaticFiles(directory=str(dashboard_dir)), name="dashboard")
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     html_file = BASE_DIR / "dashboard" / "index.html"
     if html_file.exists():
-        return HTMLResponse(content=html_file.read_text())
+        content = html_file.read_text()
+        content = content.replace('href="styles.css"', 'href="/dashboard/styles.css"')
+        content = content.replace('src="utils.js"', 'src="/dashboard/utils.js"')
+        content = content.replace('src="api.js"', 'src="/dashboard/api.js"')
+        content = content.replace('src="app.js"', 'src="/dashboard/app.js"')
+        content = content.replace('pages/', '/dashboard/pages/')
+        return HTMLResponse(content=content)
     return HTMLResponse("<h1>Agentic OS</h1><p>Dashboard not built yet. Run <code>./install.sh</code> first.</p>")
 
 # ─── Main ─────────────────────────────────────────────────────────

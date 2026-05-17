@@ -2,73 +2,64 @@ async function renderMemory() {
   const content = document.getElementById('pageContent');
   content.innerHTML = `
     <div class="page-header">
-      <div>
+      <div class="page-header-left">
         <h1 class="page-title">Memory</h1>
-        <p class="page-subtitle">Persistent context and shared brain</p>
+        <p class="page-subtitle">Shared brain context across all agents</p>
       </div>
     </div>
-    <div id="memoryFiles"></div>
+    <div id="memoryList"><div class="loading"><div class="loading-spinner"></div></div></div>
   `;
 
   try {
     const brain = await api.getBrain();
-    const container = document.getElementById('memoryFiles');
-    const fileNames = Object.keys(brain);
+    const files = Object.entries(brain);
+    const container = document.getElementById('memoryList');
 
-    if (fileNames.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="icon">🧠</div><h3>No memory files found</h3></div>';
+    if (files.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🧠</div><div class="empty-state-title">No memory files</div></div>';
       return;
     }
 
-    fileNames.forEach(name => {
-      const content = brain[name];
-      const preview = content.slice(0, 300);
-      container.innerHTML += `
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">${name}</span>
-            <button class="btn btn-sm" onclick="editMemoryFile('${name}')">✏ Edit</button>
-          </div>
-          <pre style="max-height:200px;overflow:auto;font-size:12px">${escapeHtml(preview)}${content.length > 300 ? '\n...' : ''}</pre>
-          <div style="margin-top:8px;font-size:11px;color:var(--text2)">${content.length} characters</div>
+    container.innerHTML = `<div style="display:grid;gap:12px">${files.map(([name, content]) => {
+      const preview = content ? content.slice(0, 200) : '';
+      return `<div class="card" style="cursor:pointer" onclick="editMemory('${name}')">
+        <div class="flex items-center justify-between mb-2">
+          <div><span class="card-title">${name.replace('.md', '').replace(/-/g, ' ')}</span></div>
+          <span class="badge badge-info">${content ? content.split('\n').length : 0} lines</span>
         </div>
-      `;
-    });
+        <pre style="max-height:80px;overflow:hidden;font-size:11px;color:var(--text-muted)">${escapeHtml(preview)}${preview.length >= 200 ? '...' : ''}</pre>
+      </div>`;
+    }).join('')}</div>`;
   } catch (err) {
-    content.innerHTML = `<div class="empty-state"><div class="icon">⚠</div><h3>Error</h3><p>${escapeHtml(err.message)}</p></div>`;
+    document.getElementById('memoryList').innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠</div><div class="empty-state-title">${escapeHtml(err.message)}</div></div>`;
   }
 }
 
-async function editMemoryFile(name) {
-  const content = document.getElementById('pageContent');
-  let existingContent = '';
+async function editMemory(name) {
+  const display = name.replace('.md', '').replace(/-/g, ' ');
+  let content = '';
   try {
-    const file = await api.getBrainFile(name);
-    existingContent = file.content;
+    const r = await api.getBrainFile(name);
+    content = r.content || '';
   } catch {}
 
-  content.innerHTML = `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Edit: ${name}</h1>
-        <p class="page-subtitle">Modify shared memory</p>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="saveMemoryFile('${name}')">💾 Save</button>
-        <button class="btn" onclick="renderMemory()">← Back</button>
-      </div>
+  showModal(`Edit: ${display}`, `
+    <div class="form-group">
+      <label class="form-label">Content</label>
+      <textarea id="memContent" class="form-textarea" style="min-height:300px;font-size:12px">${escapeHtml(content)}</textarea>
     </div>
-    <div class="card">
-      <textarea id="memoryEditor" style="min-height:400px;font-family:monospace">${escapeHtml(existingContent)}</textarea>
-    </div>
-  `;
+  `, `
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveMemory('${name}')">💾 Save</button>
+  `);
 }
 
-async function saveMemoryFile(name) {
-  const content = document.getElementById('memoryEditor').value;
+async function saveMemory(name) {
+  const content = document.getElementById('memContent').value;
   try {
     await api.updateBrainFile(name, content);
-    showToast(`'${name}' saved`, 'success');
+    closeModal();
+    showToast('Memory updated', 'success');
     renderMemory();
   } catch (err) {
     showToast(`Error: ${err.message}`, 'error');
