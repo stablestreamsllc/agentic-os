@@ -6,6 +6,7 @@
   <img src="https://img.shields.io/badge/agents-3-orange.svg" alt="3 Agents"/>
   <img src="https://img.shields.io/badge/skills-16-purple.svg" alt="16 Skills"/>
   <img src="https://img.shields.io/badge/status-stable-brightgreen.svg" alt="Status: Stable"/>
+  <a href="https://dev.to/mihir_nmodi_14a06a4019e1/i-built-an-open-source-agent-os-2h30"><img src="https://img.shields.io/badge/dev.to-article-blue.svg" alt="dev.to article"/></a>
   <br/><br/>
 </div>
 
@@ -274,6 +275,8 @@ MIT License — free to use, modify, and distribute.
 <div align="center">
   <p><strong>Agentic OS</strong> — Built with ❤️ by <a href="https://github.com/modimihir07">Mihir Modi</a></p>
   <p>
+    <a href="https://dev.to/mihir_nmodi_14a06a4019e1/i-built-an-open-source-agent-os-2h30">📖 Read the dev.to article</a>
+    ·
     <a href="https://github.com/modimihir07/agentic-os/issues">Report Bug</a>
     ·
     <a href="https://github.com/modimihir07/agentic-os/discussions">Discussions</a>
