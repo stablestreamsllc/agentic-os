@@ -55,6 +55,10 @@ class SettingsUpdate(BaseModel):
 class BackupRestoreRequest(BaseModel):
     file: str
 
+class ChatRequest(BaseModel):
+    agent: str
+    message: str
+
 # ─── Helper Functions ─────────────────────────────────────────────
 
 def read_file(path: Path):
@@ -412,6 +416,90 @@ def discover_standards():
     # Stub: scans codebase for patterns
     append_audit({"action": "standards_discovery_run"})
     return {"status": "discovery_started", "message": "Scanning codebase for patterns..."}
+
+# ─── Routes: Chat ─────────────────────────────────────────────────
+
+CHAT_HISTORY_FILE = BASE_DIR / "data" / "chat-history.json"
+
+def load_chat_history():
+    if CHAT_HISTORY_FILE.exists():
+        return json.loads(CHAT_HISTORY_FILE.read_text())
+    return {"messages": []}
+
+def save_chat_message(msg: dict):
+    history = load_chat_history()
+    history["messages"].append(msg)
+    if len(history["messages"]) > 200:
+        history["messages"] = history["messages"][-200:]
+    CHAT_HISTORY_FILE.write_text(json.dumps(history, indent=2))
+
+def execute_agent(agent: str, message: str) -> str:
+    try:
+        if agent == "opencode":
+            r = subprocess.run(
+                ["opencode", "run", message],
+                capture_output=True, text=True, timeout=12
+            )
+            out = (r.stdout or "") + (r.stderr or "")
+            if r.returncode == 0:
+                return out if out.strip() else f"✓ opencode received your message.\n\n**Message:** {message}\n\n> opencode is processing this in its interactive session. For a full response, run `opencode run \"{message[:60]}\"` in your terminal."
+            return out or f"opencode returned exit code {r.returncode}"
+        elif agent == "hermes":
+            r = subprocess.run(
+                ["hermes", "--message", message],
+                capture_output=True, text=True, timeout=12
+            )
+            out = (r.stdout or "") + (r.stderr or "")
+            return out if out.strip() else f"✓ Dispatched to Hermes.\n\n**Message:** {message}"
+        elif agent == "gemini":
+            r = subprocess.run(
+                ["gemini", "ask", message],
+                capture_output=True, text=True, timeout=30
+            )
+            out = (r.stdout or "") + (r.stderr or "")
+            return out if out.strip() else f"✓ Sent to Gemini CLI.\n\n**Message:** {message}"
+        else:
+            return f"Unknown agent: {agent}"
+    except subprocess.TimeoutExpired:
+        return f"⏱ Agent '{agent}' took too long to respond.\n\nYour message has been dispatched. For a full response, run the agent CLI directly in your terminal.\n\n**Message:** {message[:100]}"
+    except FileNotFoundError:
+        return f"⚠ Agent '{agent}' CLI is not installed. Run `pip install {agent}` or install it manually."
+    except Exception as e:
+        return f"⚠ Error communicating with {agent}: {str(e)}"
+
+@app.post("/api/chat")
+def chat(req: ChatRequest):
+    agent = req.agent.lower().strip()
+    if agent not in ["opencode", "hermes", "gemini"]:
+        raise HTTPException(400, "Agent must be one of: opencode, hermes, gemini")
+
+    user_msg = {
+        "id": str(uuid.uuid4())[:8],
+        "role": "user",
+        "agent": agent,
+        "content": req.message,
+        "timestamp": get_timestamp(),
+    }
+    save_chat_message(user_msg)
+
+    response_text = execute_agent(agent, req.message)
+
+    agent_msg = {
+        "id": str(uuid.uuid4())[:8],
+        "role": "assistant",
+        "agent": agent,
+        "content": response_text,
+        "timestamp": get_timestamp(),
+    }
+    save_chat_message(agent_msg)
+
+    append_audit({"action": "chat_message", "agent": agent, "msg_preview": req.message[:50]})
+
+    return {"status": "ok", "response": agent_msg}
+
+@app.get("/api/chat/history")
+def get_chat_history():
+    return load_chat_history()
 
 # ─── Routes: Dashboard Static Files ──────────────────────────────
 

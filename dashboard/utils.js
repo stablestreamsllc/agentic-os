@@ -50,8 +50,11 @@ function statusColor(status) {
 }
 
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('collapsed');
-  localStorage.setItem('sidebarCollapsed', document.getElementById('sidebar').classList.contains('collapsed'));
+  const sidebar = document.getElementById('sidebar');
+  const isCollapsed = sidebar.classList.toggle('collapsed');
+  localStorage.setItem('sidebarCollapsed', isCollapsed);
+  const btn = sidebar.querySelector('.sidebar-toggle');
+  if (btn) btn.textContent = isCollapsed ? '▶' : '◀';
 }
 
 function toggleTheme() {
@@ -65,7 +68,11 @@ function loadTheme() {
   const saved = localStorage.getItem('theme');
   if (saved) document.documentElement.setAttribute('data-theme', saved);
   const sidebarCollapsed = localStorage.getItem('sidebarCollapsed');
-  if (sidebarCollapsed === 'true') document.getElementById('sidebar').classList.add('collapsed');
+  if (sidebarCollapsed === 'true') {
+    document.getElementById('sidebar').classList.add('collapsed');
+    const btn = document.querySelector('.sidebar-toggle');
+    if (btn) btn.textContent = '▶';
+  }
 }
 
 function showModal(title, bodyHtml, footerHtml) {
@@ -112,4 +119,5 @@ const PAGE_TITLES = {
   standards: { title: 'Standards', breadcrumb: 'Project conventions' },
   settings: { title: 'Settings', breadcrumb: 'Configuration' },
   'setup-wizard': { title: 'Setup Wizard', breadcrumb: 'Guided configuration' },
+  chat: { title: 'AI Chat', breadcrumb: 'Multi-agent terminal' },
 };

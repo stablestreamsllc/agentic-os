@@ -43,4 +43,6 @@ const api = {
   updateSettings: (settings) => api.put('/api/settings', { settings }),
   getStandards: () => api.get('/api/standards'),
   discoverStandards: () => api.post('/api/standards/discover'),
+  chat: (agent, message) => api.post('/api/chat', { agent, message }),
+  getChatHistory: () => api.get('/api/chat/history'),
 };
